@@ -219,11 +219,13 @@
         .user-profile {
             position: fixed;
             top: 20px;
-            right: 20px;
+            right: 100px;
             z-index: 100;
             display: flex;
             align-items: center;
             gap: 10px;
+            width: 140px;
+            height: 50px;
             background: var(--card-bg);
             padding: 8px 15px;
             border-radius: 25px;
@@ -1541,8 +1543,7 @@
         </div>
     </div>
 
-    <script>
-        // الكود الأساسي يبقى كما هو
+ <script>
         // Firebase Configuration
         const firebaseConfig = {
             apiKey: "AIzaSyBlcKC2ncX9mTOPlhDOnfmyzdJ5mLinWYY",
@@ -1565,6 +1566,8 @@
         let currentDeleteFunction = null;
         let currentSection = 'products';
         let statsData = {};
+        let productsListener = null;
+        let statsListener = null;
 
         // DOM Content Loaded
         document.addEventListener('DOMContentLoaded', function() {
@@ -1574,19 +1577,17 @@
         // Initialize App
         async function initApp() {
             try {
-                // Initialize Firebase
                 await initializeFirebase();
                 
-                // Check authentication state
                 auth.onAuthStateChanged(async (user) => {
                     if (user) {
-                        // User is logged in
                         currentUser = user;
                         await loadUserData();
                         showMainApp();
+                        setupRealtimeListeners();
                     } else {
-                        // User is not logged in, show login page
                         showLoginPage();
+                        cleanupListeners();
                     }
                     
                     hideLoading();
@@ -1599,14 +1600,161 @@
             }
         }
 
+        // Setup realtime listeners
+        function setupRealtimeListeners() {
+            setupProductsListener();
+            setupStatsListener();
+        }
+
+        // Setup products realtime listener
+        function setupProductsListener() {
+            if (productsListener) {
+                productsListener();
+            }
+            
+            productsListener = db.collection('shared_products')
+                .orderBy('createdAt', 'desc')
+                .onSnapshot(async (snapshot) => {
+                    const productsGrid = document.getElementById('productsGrid');
+                    const emptyState = document.getElementById('emptyState');
+                    
+                    if (!productsGrid) return;
+                    
+                    productsGrid.innerHTML = '';
+                    
+                    if (snapshot.empty) {
+                        if (emptyState) emptyState.style.display = 'block';
+                        return;
+                    }
+                    
+                    const userPromises = [];
+                    snapshot.forEach(doc => {
+                        userPromises.push(loadUserForProduct(doc));
+                    });
+                    
+                    await Promise.all(userPromises);
+                    
+                    if (emptyState) emptyState.style.display = 'none';
+                    
+                    updateSearchResults();
+                }, (error) => {
+                    console.error('Error listening to products:', error);
+                    showToast('حدث خطأ في تحديث المنتجات', 'error');
+                });
+        }
+
+        // Load user data for product
+        async function loadUserForProduct(productDoc) {
+            const productData = productDoc.data();
+            const productsGrid = document.getElementById('productsGrid');
+            
+            if (!productsGrid) return;
+            
+            try {
+                let creatorName = "مستخدم مجهول";
+                if (productData.createdBy) {
+                    const userDoc = await db.collection('users').doc(productData.createdBy).get();
+                    if (userDoc.exists) {
+                        creatorName = userDoc.data().name || creatorName;
+                    }
+                }
+                
+                const productCard = createProductCard({
+                    id: productDoc.id,
+                    ...productData,
+                    creatorName: creatorName,
+                    creatorId: productData.createdBy
+                });
+                
+                productsGrid.appendChild(productCard);
+                
+            } catch (error) {
+                console.error('Error loading user for product:', error);
+                const productCard = createProductCard({
+                    id: productDoc.id,
+                    ...productData,
+                    creatorName: "مستخدم مجهول",
+                    creatorId: null
+                });
+                productsGrid.appendChild(productCard);
+            }
+        }
+
+        // Setup stats realtime listener
+        function setupStatsListener() {
+            if (statsListener) {
+                statsListener();
+            }
+            
+            statsListener = db.collection('shared_stats').doc('current')
+                .onSnapshot(async (doc) => {
+                    if (doc.exists) {
+                        statsData = doc.data();
+                        applyStatsToDOM();
+                        
+                        // Load user names for modifiers
+                        await loadModifierNames();
+                    } else {
+                        // Create default stats
+                        statsData = {
+                            totalRevenue: { value: "0 ريال", lastModifiedBy: null, lastModifiedAt: null },
+                            totalExpenses: { value: "0 ريال", lastModifiedBy: null, lastModifiedAt: null },
+                            netProfit: { value: "0 ريال", lastModifiedBy: null, lastModifiedAt: null }
+                        };
+                        await db.collection('shared_stats').doc('current').set(statsData);
+                        applyStatsToDOM();
+                    }
+                }, (error) => {
+                    console.error('Error listening to stats:', error);
+                    showToast('حدث خطأ في تحديث الإحصائيات', 'error');
+                });
+        }
+
+        // Load modifier names for stats
+        async function loadModifierNames() {
+            const statKeys = ['totalRevenue', 'totalExpenses', 'netProfit'];
+            
+            for (const key of statKeys) {
+                const stat = statsData[key];
+                if (stat && stat.lastModifiedBy) {
+                    try {
+                        const userDoc = await db.collection('users').doc(stat.lastModifiedBy).get();
+                        if (userDoc.exists) {
+                            const userName = userDoc.data().name;
+                            const element = document.getElementById(key + 'ModifiedBy');
+                            if (element) {
+                                const time = stat.lastModifiedAt ? 
+                                    new Date(stat.lastModifiedAt.seconds * 1000).toLocaleString('ar-SA') : 
+                                    'الآن';
+                                element.textContent = `آخر تعديل: ${userName} - ${time}`;
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error loading modifier name:', error);
+                    }
+                }
+            }
+        }
+
+        // Cleanup listeners
+        function cleanupListeners() {
+            if (productsListener) {
+                productsListener();
+                productsListener = null;
+            }
+            
+            if (statsListener) {
+                statsListener();
+                statsListener = null;
+            }
+        }
+
         // Initialize Firebase and Check Connection
         async function initializeFirebase() {
             try {
-                // Test Firestore connection
                 const testDoc = await db.collection('test').doc('connection').get();
                 console.log('Firestore connection successful');
                 
-                // Initialize system settings if needed
                 await initializeSystemSettings();
                 
             } catch (error) {
@@ -1618,21 +1766,19 @@
         // Initialize System Settings
         async function initializeSystemSettings() {
             try {
-                const settingsRef = db.collection('system_settings').doc('login');
+                const settingsRef = db.collection('system_settings').doc('shared_mode');
                 const settingsDoc = await settingsRef.get();
                 
                 if (!settingsDoc.exists) {
                     const defaultSettings = {
-                        loginEnabled: true,
-                        allowRegistration: true,
-                        requireEmailVerification: false,
-                        maxUsers: 100,
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        createdBy: 'system'
+                        sharedMode: true,
+                        allowDeletion: true,
+                        maxImageSize: 5 * 1024 * 1024, // 5MB
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
                     };
                     
                     await settingsRef.set(defaultSettings);
-                    console.log('System settings initialized');
+                    console.log('Shared mode settings initialized');
                 }
                 
             } catch (error) {
@@ -1642,7 +1788,6 @@
 
         // Switch Login Tab
         function switchLoginTab(tab) {
-            // Update active tab
             document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.login-form').forEach(f => f.classList.remove('active'));
             
@@ -1669,29 +1814,25 @@
             const loginBtnText = document.getElementById('loginBtnText');
             const loginError = document.getElementById('loginError');
             
-            // Show loading state
             loginBtn.disabled = true;
             if (loginBtnText) loginBtnText.textContent = 'جاري التحقق...';
             if (loginError) loginError.classList.remove('show');
             
             try {
-                // Sign in with email and password
                 const userCredential = await auth.signInWithEmailAndPassword(email, password);
                 currentUser = userCredential.user;
                 
-                // Check if user exists in Firestore
                 const userDoc = await db.collection('users').doc(currentUser.uid).get();
                 
                 if (!userDoc.exists) {
-                    // Create user document if it doesn't exist
                     await createUserDocument(currentUser);
                 }
                 
                 showToast('تم تسجيل الدخول بنجاح', 'success');
                 
-                // Load user data and show main app
                 await loadUserData();
                 showMainApp();
+                setupRealtimeListeners();
                 
             } catch (error) {
                 console.error('Login error:', error);
@@ -1714,7 +1855,6 @@
                     }
                 }
             } finally {
-                // Reset button state
                 if (loginBtn) {
                     loginBtn.disabled = false;
                     if (loginBtnText) loginBtnText.textContent = 'تسجيل الدخول';
@@ -1734,13 +1874,11 @@
             const registerBtnText = document.getElementById('registerBtnText');
             const registerError = document.getElementById('registerError');
             
-            // Show loading state
             registerBtn.disabled = true;
             if (registerBtnText) registerBtnText.textContent = 'جاري إنشاء الحساب...';
             if (registerError) registerError.classList.remove('show');
             
             try {
-                // Validate inputs
                 if (!email || !password || !confirmPassword || !name) {
                     throw new Error('يرجى ملء جميع الحقول المطلوبة');
                 }
@@ -1757,21 +1895,17 @@
                     throw new Error('البريد الإلكتروني غير صالح');
                 }
                 
-                // Create user in Firebase Authentication
                 const userCredential = await auth.createUserWithEmailAndPassword(email, password);
                 const newUser = userCredential.user;
                 
-                // Update display name
                 await newUser.updateProfile({
                     displayName: name
                 });
                 
-                // Create user document in Firestore
                 await createUserDocument(newUser);
                 
                 showToast('تم إنشاء حسابك بنجاح!', 'success');
                 
-                // Login automatically
                 await handleLogin();
                 
             } catch (error) {
@@ -1793,12 +1927,10 @@
                     }
                 }
                 
-                // Sign out if there was an error
                 if (auth.currentUser) {
                     await auth.signOut();
                 }
             } finally {
-                // Reset button state
                 if (registerBtn) {
                     registerBtn.disabled = false;
                     if (registerBtnText) registerBtnText.textContent = 'إنشاء حساب';
@@ -1816,14 +1948,10 @@
                     role: 'user',
                     active: true,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    lastLogin: firebase.firestore.FieldValue.serverTimestamp(),
-                    profileCompleted: false
+                    lastLogin: firebase.firestore.FieldValue.serverTimestamp()
                 };
                 
                 await db.collection('users').doc(user.uid).set(userData);
-                console.log('User document created successfully');
-                
-                // Store the user data globally
                 currentUserData = userData;
                 
             } catch (error) {
@@ -1835,43 +1963,29 @@
         // Load User Data from Firestore
         async function loadUserData() {
             try {
-                if (!currentUser) {
-                    console.error('No current user found');
-                    return;
-                }
-                
-                console.log('Loading user data for UID:', currentUser.uid);
+                if (!currentUser) return;
                 
                 const userDoc = await db.collection('users').doc(currentUser.uid).get();
                 
                 if (userDoc.exists) {
                     currentUserData = userDoc.data();
                     
-                    // Check if user is active
                     if (!currentUserData.active) {
                         showToast('حسابك معطل، يرجى التواصل مع المشرف', 'error');
                         await logout();
                         return;
                     }
                     
-                    // Update last login time
                     await updateLastLogin();
-                    
-                    // Update user UI
                     updateUserUI();
                     
-                    console.log('User data loaded successfully:', currentUserData);
-                    
                 } else {
-                    console.log('User document does not exist, creating new one...');
-                    // Create user document if it doesn't exist
                     await createUserDocument(currentUser);
                 }
                 
             } catch (error) {
                 console.error('Error loading user data:', error);
                 showToast('حدث خطأ في تحميل بيانات المستخدم', 'error');
-                // Don't log out, just show error
             }
         }
 
@@ -1891,12 +2005,8 @@
 
         // Update User UI
         function updateUserUI() {
-            if (!currentUserData) {
-                console.warn('No user data available for UI update');
-                return;
-            }
+            if (!currentUserData) return;
             
-            // Update user name and email in header
             const userNameDisplay = document.getElementById('userNameDisplay');
             const userEmailDisplay = document.getElementById('userEmailDisplay');
             const userAvatar = document.getElementById('userAvatar');
@@ -1915,35 +2025,27 @@
                     userAvatar.innerHTML = initials;
                 }
             }
-            
-            console.log('User UI updated');
         }
 
         // Show Login Page
         function showLoginPage() {
-            console.log('Showing login page');
-            
             document.getElementById('loginContainer').style.display = 'flex';
             document.getElementById('mainAppContainer').style.display = 'none';
             
-            // Reset forms
             const loginForm = document.getElementById('loginForm');
             const registerForm = document.getElementById('registerForm');
             
             if (loginForm) loginForm.reset();
             if (registerForm) registerForm.reset();
             
-            // Clear errors
             const loginError = document.getElementById('loginError');
             const registerError = document.getElementById('registerError');
             
             if (loginError) loginError.classList.remove('show');
             if (registerError) registerError.classList.remove('show');
             
-            // Switch to login tab by default
             switchLoginTab('login');
             
-            // Add event listeners for forms
             const loginFormElement = document.getElementById('loginForm');
             const registerFormElement = document.getElementById('registerForm');
             
@@ -1958,20 +2060,13 @@
 
         // Show Main App
         function showMainApp() {
-            console.log('Showing main app');
-            
             document.getElementById('loginContainer').style.display = 'none';
             document.getElementById('mainAppContainer').style.display = 'block';
-            
-            // Initialize the main app functionality
             initMainApp();
         }
 
         // Initialize Main App Functionality
         function initMainApp() {
-            console.log('Initializing main app functionality');
-            
-            // Initialize mobile menu
             const mobileMenuBtn = document.getElementById('mobileMenuBtn');
             const sidebar = document.getElementById('sidebar');
             
@@ -1984,7 +2079,6 @@
                 });
             }
 
-            // Close sidebar when clicking outside on mobile
             document.addEventListener('click', (e) => {
                 if (window.innerWidth <= 768 && 
                     sidebar && !sidebar.contains(e.target) && 
@@ -1994,7 +2088,6 @@
                 }
             });
 
-            // Search functionality
             const searchInput = document.getElementById('searchInput');
             const searchResults = document.getElementById('searchResults');
 
@@ -2006,7 +2099,6 @@
 
                 searchInput.addEventListener('input', updateSearchResults);
 
-                // Close search results when clicking outside
                 document.addEventListener('click', (e) => {
                     if (searchInput && !searchInput.contains(e.target) && 
                         searchResults && !searchResults.contains(e.target)) {
@@ -2015,7 +2107,6 @@
                 });
             }
 
-            // Modal functionality
             const confirmationModal = document.getElementById('confirmationModal');
             const confirmDeleteBtn = document.getElementById('confirmDelete');
             const cancelDeleteBtn = document.getElementById('cancelDelete');
@@ -2035,11 +2126,6 @@
                 });
             }
 
-            // Load data with user-specific storage
-            loadProducts();
-            loadStats();
-            
-            // Update actions bar based on section
             updateActionsBar();
         }
 
@@ -2050,8 +2136,7 @@
                 currentUser = null;
                 currentUserData = null;
                 showToast('تم تسجيل الخروج بنجاح', 'success');
-                
-                // Return to login page
+                cleanupListeners();
                 showLoginPage();
                 
             } catch (error) {
@@ -2137,6 +2222,10 @@
                                         ${currentUserData?.active ? 'نشط' : 'معطل'}
                                     </span>
                                 </div>
+                                <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                                    <span style="color: var(--light-text);">النظام:</span>
+                                    <span style="color: var(--accent-color); font-weight: 600;">تعاوني مشترك</span>
+                                </div>
                             </div>
                         </div>
                         <div class="modal-buttons">
@@ -2149,7 +2238,6 @@
                 </div>
             `;
             
-            // Remove existing modal if any
             const existingModal = document.querySelector('.modal[onclick*="stopPropagation"]');
             if (existingModal) {
                 existingModal.remove();
@@ -2157,7 +2245,6 @@
             
             document.body.insertAdjacentHTML('beforeend', userMenu);
             
-            // Close modal when clicking outside
             setTimeout(() => {
                 document.addEventListener('click', closeModalOnClick);
             }, 100);
@@ -2178,9 +2265,8 @@
             }
         }
 
-        // Existing Product Management Functions (with user-specific storage)
+        // Product Management Functions
         function switchSection(section) {
-            // Update active tab
             const productsTab = document.getElementById('productsTab');
             const statsTab = document.getElementById('statsTab');
             
@@ -2190,7 +2276,6 @@
             const sectionTab = document.getElementById(section + 'Tab');
             if (sectionTab) sectionTab.querySelector('.icon-btn').classList.add('active');
             
-            // Update active section
             const productsSection = document.getElementById('productsSection');
             const statsSection = document.getElementById('statsSection');
             
@@ -2233,44 +2318,19 @@
             }
         }
 
-        // User-specific storage key
-        function getStorageKey(key) {
-            return currentUser ? `${currentUser.uid}_${key}` : key;
-        }
-
-        // Load Products with user-specific storage
-        function loadProducts() {
-            if (!currentUser) {
-                console.error('No current user for loading products');
-                return;
-            }
-            
-            const products = JSON.parse(localStorage.getItem(getStorageKey('libraryProducts')) || '[]');
-            const productsGrid = document.getElementById('productsGrid');
-            const emptyState = document.getElementById('emptyState');
-
-            if (!productsGrid) return;
-
-            productsGrid.innerHTML = '';
-
-            if (products.length === 0) {
-                if (emptyState) emptyState.style.display = 'block';
-                return;
-            }
-
-            products.forEach(productData => {
-                const productCard = createProductCard(productData);
-                productsGrid.appendChild(productCard);
-            });
-
-            if (emptyState) emptyState.style.display = 'none';
-        }
-
         // Create Product Card
         function createProductCard(productData) {
             const productCard = document.createElement('div');
             productCard.className = 'product-card';
             productCard.dataset.id = productData.id;
+
+            // User indicator (who created this product)
+            if (productData.creatorName) {
+                const userIndicator = document.createElement('div');
+                userIndicator.className = 'user-indicator';
+                userIndicator.innerHTML = `<i class="fas fa-user"></i> ${productData.creatorName}`;
+                productCard.appendChild(userIndicator);
+            }
 
             // Product header
             const productHeader = document.createElement('div');
@@ -2285,10 +2345,9 @@
             productName.addEventListener('input', function() {
                 this.style.height = 'auto';
                 this.style.height = this.scrollHeight + 'px';
-                saveProduct(productData.id);
+                updateProduct(productData.id);
             });
 
-            // Set initial height
             setTimeout(() => {
                 productName.style.height = 'auto';
                 productName.style.height = productName.scrollHeight + 'px';
@@ -2298,18 +2357,18 @@
             const productControls = document.createElement('div');
             productControls.className = 'product-controls';
 
-            // Delete button
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'product-btn delete-btn';
-            deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
-            deleteBtn.addEventListener('click', () => {
-                showDeleteConfirmation(() => {
-                    productCard.remove();
-                    saveProducts();
-                    checkEmptyState();
-                    showToast('تم حذف المنتج', 'success');
+            // Delete button (only for creator or if admin)
+            if (currentUser && (productData.creatorId === currentUser.uid || currentUserData?.role === 'admin')) {
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'product-btn delete-btn';
+                deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                deleteBtn.addEventListener('click', () => {
+                    showDeleteConfirmation(() => {
+                        deleteProduct(productData.id);
+                    });
                 });
-            });
+                productControls.appendChild(deleteBtn);
+            }
 
             // Lock button
             const lockBtn = document.createElement('button');
@@ -2325,23 +2384,21 @@
                     ? '<i class="fas fa-lock-open"></i>' 
                     : '<i class="fas fa-lock"></i>';
                 this.classList.toggle('locked', !isLocked);
-                saveProduct(productData.id);
+                updateProduct(productData.id);
             });
 
-            // Assemble header
-            productControls.appendChild(deleteBtn);
             productControls.appendChild(lockBtn);
             productHeader.appendChild(productName);
             productHeader.appendChild(productControls);
 
             // Product image container
             const productImageContainer = document.createElement('div');
-            productImageContainer.className = `product-image-container ${productData.hasImage ? '' : 'empty'}`;
+            productImageContainer.className = `product-image-container ${productData.imageUrl ? '' : 'empty'}`;
             
-            if (productData.hasImage && productData.imageData) {
+            if (productData.imageUrl) {
                 const productImage = document.createElement('img');
                 productImage.className = 'product-image visible';
-                productImage.src = productData.imageData;
+                productImage.src = productData.imageUrl;
                 productImageContainer.appendChild(productImage);
             }
             
@@ -2362,12 +2419,11 @@
             userName.className = 'user-name';
             userName.value = productData.userName || '';
             userName.disabled = productData.isLocked || false;
-            userName.addEventListener('input', () => saveProduct(productData.id));
+            userName.addEventListener('input', () => updateProduct(productData.id));
 
             userSection.appendChild(userIcon);
             userSection.appendChild(userName);
 
-            // Assemble product card
             productCard.appendChild(productHeader);
             productCard.appendChild(productImageContainer);
             productCard.appendChild(userSection);
@@ -2375,48 +2431,134 @@
             return productCard;
         }
 
-        // Add Product
-        function addProduct() {
-            const productsGrid = document.getElementById('productsGrid');
-            const emptyState = document.getElementById('emptyState');
-            
-            if (!productsGrid) return;
-            
-            const productData = {
-                id: 'product_' + Date.now(),
-                name: '',
-                isLocked: false,
-                userName: '',
-                imageData: '',
-                hasImage: false,
-                updatedAt: new Date().toISOString()
-            };
+        // Add Product to Firestore
+        async function addProduct() {
+            if (!currentUser) {
+                showToast('يجب تسجيل الدخول أولاً', 'error');
+                return;
+            }
 
-            const productCard = createProductCard(productData);
-            productsGrid.appendChild(productCard);
+            try {
+                const newProduct = {
+                    name: 'منتج جديد',
+                    userName: '',
+                    imageUrl: '',
+                    isLocked: false,
+                    createdBy: currentUser.uid,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    lastModifiedBy: currentUser.uid,
+                    lastModifiedAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
 
-            // Hide empty state
-            if (emptyState) emptyState.style.display = 'none';
-
-            // Save product
-            saveProduct(productData.id);
-            
-            // Focus on product name
-            const productName = productCard.querySelector('.product-name');
-            setTimeout(() => {
-                if (productName) productName.focus();
-            }, 100);
-            
-            showToast('تم إضافة منتج جديد', 'success');
+                await db.collection('shared_products').add(newProduct);
+                showToast('تم إضافة منتج جديد', 'success');
+                
+            } catch (error) {
+                console.error('Error adding product:', error);
+                showToast('حدث خطأ في إضافة المنتج', 'error');
+            }
         }
 
-        // Select Product Image
-        function selectProductImage() {
+        // Update Product in Firestore
+        async function updateProduct(productId) {
+            if (!currentUser) return;
+
+            const productCard = document.querySelector(`[data-id="${productId}"]`);
+            if (!productCard) return;
+
+            const productName = productCard.querySelector('.product-name');
+            const userNameInput = productCard.querySelector('.user-name');
+            
+            if (!productName || !userNameInput) return;
+            
+            const updates = {
+                name: productName.value,
+                userName: userNameInput.value,
+                isLocked: productName.disabled,
+                lastModifiedBy: currentUser.uid,
+                lastModifiedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            try {
+                await db.collection('shared_products').doc(productId).update(updates);
+            } catch (error) {
+                console.error('Error updating product:', error);
+            }
+        }
+
+        // Update product image
+        async function updateProductImage(productId, imageUrl) {
+            if (!currentUser) return;
+
+            try {
+                await db.collection('shared_products').doc(productId).update({
+                    imageUrl: imageUrl,
+                    lastModifiedBy: currentUser.uid,
+                    lastModifiedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            } catch (error) {
+                console.error('Error updating product image:', error);
+                throw error;
+            }
+        }
+
+        // Delete Product from Firestore
+        async function deleteProduct(productId) {
+            if (!currentUser) return;
+
+            try {
+                await db.collection('shared_products').doc(productId).delete();
+                showToast('تم حذف المنتج', 'success');
+            } catch (error) {
+                console.error('Error deleting product:', error);
+                showToast('حدث خطأ في حذف المنتج', 'error');
+            }
+        }
+
+        // Delete All Products (admin only)
+        async function deleteAllProducts() {
+            if (!currentUser) return;
+
+            try {
+                // Check if user is admin
+                const userDoc = await db.collection('users').doc(currentUser.uid).get();
+                const userData = userDoc.data();
+                
+                if (userData?.role !== 'admin') {
+                    showToast('هذا الإجراء مسموح فقط للمشرفين', 'error');
+                    return;
+                }
+
+                showDeleteConfirmation(async () => {
+                    try {
+                        const snapshot = await db.collection('shared_products').get();
+                        const batch = db.batch();
+                        
+                        snapshot.forEach(doc => {
+                            batch.delete(doc.ref);
+                        });
+                        
+                        await batch.commit();
+                        showToast('تم حذف جميع المنتجات', 'success');
+                    } catch (error) {
+                        console.error('Error deleting all products:', error);
+                        showToast('حدث خطأ في حذف المنتجات', 'error');
+                    }
+                }, 'هل أنت متأكد من رغبتك في حذف جميع المنتجات؟ هذا الإجراء لا يمكن التراجع عنه.');
+                
+            } catch (error) {
+                console.error('Error checking user role:', error);
+                showToast('حدث خطأ في التحقق من الصلاحيات', 'error');
+            }
+        }
+
+        // Select and Upload Product Image
+        async function selectProductImage() {
             const input = document.createElement('input');
             input.type = 'file';
             input.accept = 'image/*';
             
-            input.onchange = function(e) {
+            input.onchange = async function(e) {
                 const file = e.target.files[0];
                 if (!file) return;
 
@@ -2430,134 +2572,41 @@
                     return;
                 }
 
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const imageData = e.target.result;
+                try {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
                     
-                    // Find the product card
-                    const productCard = document.querySelector(`[data-id="${currentProductId}"]`);
-                    if (!productCard) return;
+                    reader.onload = async function(e) {
+                        const imageData = e.target.result;
+                        
+                        // Find the product card
+                        const productCard = document.querySelector(`[data-id="${currentProductId}"]`);
+                        if (!productCard) return;
+                        
+                        const productImageContainer = productCard.querySelector('.product-image-container');
+                        if (!productImageContainer) return;
+                        
+                        const existingImage = productImageContainer.querySelector('.product-image');
+                        const productImage = existingImage || document.createElement('img');
+                        
+                        productImage.className = 'product-image visible';
+                        productImage.src = imageData;
+                        productImageContainer.innerHTML = '';
+                        productImageContainer.appendChild(productImage);
+                        productImageContainer.classList.remove('empty');
+                        
+                        // Update in Firestore
+                        await updateProductImage(currentProductId, imageData);
+                        showToast('تم حفظ صورة المنتج', 'success');
+                    };
                     
-                    const productImageContainer = productCard.querySelector('.product-image-container');
-                    if (!productImageContainer) return;
-                    
-                    const existingImage = productImageContainer.querySelector('.product-image');
-                    const productImage = existingImage || document.createElement('img');
-                    
-                    productImage.className = 'product-image visible';
-                    productImage.src = imageData;
-                    productImageContainer.innerHTML = '';
-                    productImageContainer.appendChild(productImage);
-                    productImageContainer.classList.remove('empty');
-                    
-                    // Save product with image data
-                    saveProduct(currentProductId);
-                    showToast('تم حفظ صورة المنتج', 'success');
-                };
-                reader.readAsDataURL(file);
+                } catch (error) {
+                    console.error('Error uploading image:', error);
+                    showToast('حدث خطأ في رفع الصورة', 'error');
+                }
             };
 
             input.click();
-        }
-
-        // Save Product with user-specific storage
-        function saveProduct(productId) {
-            if (!currentUser) {
-                console.error('No current user for saving product');
-                return;
-            }
-
-            const productCard = document.querySelector(`[data-id="${productId}"]`);
-            if (!productCard) return;
-
-            const productName = productCard.querySelector('.product-name');
-            const userNameInput = productCard.querySelector('.user-name');
-            const productImageContainer = productCard.querySelector('.product-image-container');
-            const productImage = productImageContainer ? productImageContainer.querySelector('.product-image') : null;
-            
-            if (!productName || !userNameInput) return;
-            
-            const productNameValue = productName.value;
-            const isLocked = productName.disabled;
-            const userName = userNameInput.value;
-            const imageData = productImage ? productImage.src : '';
-
-            const productData = {
-                id: productId,
-                name: productNameValue,
-                isLocked: isLocked,
-                userName: userName,
-                imageData: imageData,
-                hasImage: !!productImage,
-                updatedAt: new Date().toISOString()
-            };
-
-            // Save to localStorage with user-specific key
-            const products = JSON.parse(localStorage.getItem(getStorageKey('libraryProducts')) || '[]');
-            const index = products.findIndex(p => p.id === productId);
-            
-            if (index >= 0) {
-                products[index] = productData;
-            } else {
-                products.push(productData);
-            }
-            
-            localStorage.setItem(getStorageKey('libraryProducts'), JSON.stringify(products));
-            
-            // Update search results
-            updateSearchResults();
-        }
-
-        // Save All Products
-        function saveProducts() {
-            if (!currentUser) {
-                console.error('No current user for saving products');
-                return;
-            }
-
-            const products = [];
-            const productCards = document.querySelectorAll('.product-card');
-
-            productCards.forEach(card => {
-                const productId = card.dataset.id;
-                const productName = card.querySelector('.product-name');
-                const userNameInput = card.querySelector('.user-name');
-                const productImageContainer = card.querySelector('.product-image-container');
-                const productImage = productImageContainer ? productImageContainer.querySelector('.product-image') : null;
-                
-                if (!productName || !userNameInput) return;
-                
-                const productNameValue = productName.value;
-                const isLocked = productName.disabled;
-                const userName = userNameInput.value;
-                const imageData = productImage ? productImage.src : '';
-
-                products.push({
-                    id: productId,
-                    name: productNameValue,
-                    isLocked: isLocked,
-                    userName: userName,
-                    imageData: imageData,
-                    hasImage: !!productImage,
-                    updatedAt: new Date().toISOString()
-                });
-            });
-
-            localStorage.setItem(getStorageKey('libraryProducts'), JSON.stringify(products));
-        }
-
-        // Delete All Products
-        function deleteAllProducts() {
-            const productsGrid = document.getElementById('productsGrid');
-            if (!productsGrid || productsGrid.children.length === 0) return;
-
-            showDeleteConfirmation(() => {
-                productsGrid.innerHTML = '';
-                localStorage.removeItem(getStorageKey('libraryProducts'));
-                const emptyState = document.getElementById('emptyState');
-                if (emptyState) emptyState.style.display = 'block';
-                showToast('تم حذف جميع المنتجات', 'success');
-            }, 'هل أنت متأكد من رغبتك في حذف جميع المنتجات؟ هذا الإجراء لا يمكن التراجع عنه.');
         }
 
         // Show Delete Confirmation
@@ -2568,20 +2617,6 @@
             if (modal && modalMessage) {
                 modalMessage.textContent = message;
                 modal.classList.add('active');
-            }
-        }
-
-        // Check Empty State
-        function checkEmptyState() {
-            const productsGrid = document.getElementById('productsGrid');
-            const emptyState = document.getElementById('emptyState');
-            
-            if (!productsGrid || !emptyState) return;
-            
-            if (productsGrid.children.length === 0) {
-                emptyState.style.display = 'block';
-            } else {
-                emptyState.style.display = 'none';
             }
         }
 
@@ -2596,7 +2631,6 @@
             const searchTerm = searchInput.value.trim().toLowerCase();
             const productCards = document.querySelectorAll('.product-card');
 
-            // Clear previous results
             searchResults.querySelectorAll('li:not(.no-results)').forEach(item => item.remove());
 
             if (!searchTerm) {
@@ -2634,7 +2668,6 @@
                         searchResults.classList.remove('show');
                         searchInput.value = '';
                         
-                        // Add highlight effect
                         card.style.boxShadow = '0 0 0 3px var(--accent-color)';
                         setTimeout(() => {
                             card.style.boxShadow = '';
@@ -2648,54 +2681,45 @@
             noResultsItem.style.display = hasResults ? 'none' : 'block';
         }
 
-        // Load Stats with user-specific storage
-        function loadStats() {
-            const savedStats = localStorage.getItem(getStorageKey('libraryStats'));
-            if (savedStats) {
-                statsData = JSON.parse(savedStats);
-                applyStatsToDOM();
-            } else {
-                // Default stats
-                statsData = {
-                    totalRevenue: '0 ريال',
-                    totalExpenses: '0 ريال',
-                    netProfit: '0 ريال',
-                    revenueChange: '+0%',
-                    expensesChange: '+0%',
-                    profitChange: '+0%'
-                };
-                applyStatsToDOM();
-            }
-        }
-
         // Apply Stats to DOM
         function applyStatsToDOM() {
             const statElements = {
                 totalRevenue: document.querySelector('[data-stat="totalRevenue"]'),
                 totalExpenses: document.querySelector('[data-stat="totalExpenses"]'),
-                netProfit: document.querySelector('[data-stat="netProfit"]'),
-                revenueChange: document.querySelector('[data-stat="revenueChange"]'),
-                expensesChange: document.querySelector('[data-stat="expensesChange"]'),
-                profitChange: document.querySelector('[data-stat="profitChange"]')
+                netProfit: document.querySelector('[data-stat="netProfit"]')
             };
 
             for (const [key, element] of Object.entries(statElements)) {
-                if (element && statsData[key]) {
-                    element.textContent = statsData[key];
+                if (element && statsData[key] && statsData[key].value) {
+                    element.textContent = statsData[key].value;
                 }
             }
         }
 
-        // Save Stat with user-specific storage
-        function saveStat(statKey, value) {
+        // Update Stat in Firestore
+        async function updateStat(statKey, value) {
             if (!currentUser) return;
 
             if (!value || value.trim() === '') {
-                value = statsData[statKey] || '0';
+                return;
             }
-            statsData[statKey] = value;
-            localStorage.setItem(getStorageKey('libraryStats'), JSON.stringify(statsData));
-            showToast('تم حفظ التعديل', 'success');
+
+            try {
+                const updateData = {
+                    [statKey]: {
+                        value: value,
+                        lastModifiedBy: currentUser.uid,
+                        lastModifiedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    }
+                };
+
+                await db.collection('shared_stats').doc('current').update(updateData);
+                showToast('تم حفظ التعديل', 'success');
+                
+            } catch (error) {
+                console.error('Error updating stat:', error);
+                showToast('حدث خطأ في حفظ التعديل', 'error');
+            }
         }
 
         // Enable Stats Editing
@@ -2709,24 +2733,8 @@
             showToast('يمكنك الآن تعديل قيم الأرباح', 'info');
         }
 
-        // Auto-save on page unload
-        window.addEventListener('beforeunload', () => {
-            if (currentUser) {
-                saveProducts();
-                localStorage.setItem(getStorageKey('libraryStats'), JSON.stringify(statsData));
-            }
-        });
-
-        // Auto-save every 30 seconds
-        setInterval(() => {
-            if (currentUser) {
-                saveProducts();
-            }
-        }, 30000);
-
         // Handle keyboard shortcuts
         document.addEventListener('keydown', (e) => {
-            // Ctrl/Cmd + N to add new product
             if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
                 e.preventDefault();
                 if (currentSection === 'products') {
@@ -2734,7 +2742,6 @@
                 }
             }
             
-            // Ctrl/Cmd + F to focus search
             if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
                 e.preventDefault();
                 const searchInput = document.getElementById('searchInput');
@@ -2743,7 +2750,6 @@
                 }
             }
             
-            // Escape to close modals
             if (e.key === 'Escape') {
                 const modal = document.getElementById('confirmationModal');
                 if (modal && modal.classList.contains('active')) {
