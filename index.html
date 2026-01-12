@@ -2461,21 +2461,22 @@
         push,
         onValue
     } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-analytics.js";
     
-    // تكوين Firebase
+    // تكوين Firebase الجديد
     const firebaseConfig = {
-        apiKey: "AIzaSyCYbDqGBlBEEDGNfXbAbsS4sZupNDb7jrY",
-        authDomain: "system-306.firebaseapp.com",
-        databaseURL: "https://system-306-default-rtdb.firebaseio.com",
-        projectId: "system-306",
-        storageBucket: "system-306.firebasestorage.app",
-        messagingSenderId: "471316495588",
-        appId: "1:471316495588:web:4d7ba9be7fea17c7a8c0f1",
-        measurementId: "G-T4RTTBWHKL"
+        apiKey: "AIzaSyBlcKC2ncX9mTOPlhDOnfmyzdJ5mLinWYY",
+        authDomain: "al-fajr-digital-library.firebaseapp.com",
+        databaseURL: "https://al-fajr-digital-library-default-rtdb.firebaseio.com",
+        projectId: "al-fajr-digital-library",
+        storageBucket: "al-fajr-digital-library.firebasestorage.app",
+        messagingSenderId: "739899495618",
+        appId: "1:739899495618:web:8e60409193ec1408b4d75b",
+        measurementId: "G-FFRQP9CXYK"
     };
 
     // المتغيرات العامة
-    let app, auth, db;
+    let app, auth, db, analytics;
     let currentUser = null;
     let currentSection = 'products';
     let statsEditMode = false;
@@ -2496,8 +2497,10 @@
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getDatabase(app);
+            analytics = getAnalytics(app);
             
             console.log("✅ Firebase تم التهيئة بنجاح");
+            console.log("📊 تم تهيئة التحليلات");
             setupAuthListener();
             
         } catch (error) {
