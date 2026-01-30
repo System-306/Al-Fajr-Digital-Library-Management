@@ -1,0 +1,1626 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>لوحة التحكم - إدارة المستخدمين</title>
+    <link rel="icon" type="image/x-icon" href="img//img.jpg">
+    <link rel="icon" type="image/x-icon" href="img/icon1.jpg">
+        <script src="auth-check.js"></script>
+        <style>
+        /* إضافة تنسيقات للمحتوى المحمي */
+        .protected-content {
+            display: none;
+        }
+        
+        .auth-check-message {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+        }
+    </style>
+    <!-- استيراد Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
+        import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
+        import { getDatabase, ref, onValue, set, remove, update } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
+
+        // ====== تهيئة Firebase ======
+        const firebaseConfig = {
+            apiKey: "AIzaSyBlcKC2ncX9mTOPlhDOnfmyzdJ5mLinWYY",
+            authDomain: "al-fajr-digital-library.firebaseapp.com",
+            databaseURL: "https://al-fajr-digital-library-default-rtdb.firebaseio.com",
+            projectId: "al-fajr-digital-library",
+            storageBucket: "al-fajr-digital-library.firebasestorage.app",
+            messagingSenderId: "739899495618",
+            appId: "1:739899495618:web:8e60409193ec1408b4d75b"
+        };
+
+        // تهيئة التطبيق
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const database = getDatabase(app);
+
+        // جعل المتغيرات متاحة عالمياً
+        window.firebase = {
+            auth: auth,
+            database: database,
+            ref: ref,
+            onValue: onValue,
+            set: set,
+            remove: remove,
+            update: update,
+            signOut: signOut,
+            onAuthStateChanged: onAuthStateChanged
+        };
+    </script>
+
+    <style>
+        /* ====== متغيرات التصميم الجديدة ====== */
+        :root {
+            --primary-color: #0a0a0a;
+            --secondary-color: #141414;
+            --accent-color: #9c7d54;
+            --accent-light: #b89a70;
+            --accent-dark: #7a633f;
+            --danger-color: #ff6b6b;
+            --success-color: #4cd964;
+            --info-color: #5ac8fa;
+            --warning-color: #ffcc00;
+            --text-color: #e8e8e8;
+            --light-text: #a0a0a0;
+            --white: #ffffff;
+            --card-bg: #1a1a1a;
+            --input-bg: #222222;
+            --border-color: #333333;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            --shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.6);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --border-radius: 12px;
+        }
+
+        /* ====== إعادة تعيين عام ====== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Cairo', 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: var(--text-color);
+            min-height: 100vh;
+            direction: rtl;
+            line-height: 1.6;
+        }
+
+        /* ====== تصميم الهيكل العام ====== */
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            min-height: 100vh;
+            background: rgba(10, 10, 10, 0.98);
+            backdrop-filter: blur(10px);
+        }
+
+        /* ====== الشريط الجانبي ====== */
+        .sidebar {
+            background: linear-gradient(180deg, var(--secondary-color) 0%, var(--primary-color) 100%);
+            color: white;
+            padding: 30px 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow-hover);
+            z-index: 100;
+            border-left: 2px solid var(--border-color);
+        }
+
+        .logo-section {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, var(--accent-color), var(--accent-light));
+            border-radius: 50%;
+            margin: 0 auto 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: white;
+            box-shadow: var(--shadow-hover);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .logo-section h1 {
+            font-size: 22px;
+            color: var(--accent-color);
+            margin-bottom: 5px;
+        }
+
+        .logo-section p {
+            color: var(--light-text);
+            font-size: 14px;
+        }
+
+        .nav-menu {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px 20px;
+            color: var(--light-text);
+            text-decoration: none;
+            border-radius: var(--border-radius);
+            transition: var(--transition);
+            font-weight: 500;
+            border: 1px solid transparent;
+        }
+
+        .nav-item:hover {
+            background: rgba(156, 125, 84, 0.1);
+            color: var(--accent-color);
+            transform: translateX(-5px);
+            border-color: var(--border-color);
+        }
+
+        .nav-item.active {
+            background: linear-gradient(135deg, var(--accent-color), var(--accent-dark));
+            color: white;
+            box-shadow: var(--shadow);
+            border: none;
+        }
+
+        .nav-item i {
+            font-size: 20px;
+            width: 24px;
+        }
+
+        .user-section {
+            margin-top: auto;
+            padding-top: 20px;
+            border-top: 2px solid var(--border-color);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .user-avatar {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, var(--accent-color), var(--accent-light));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: white;
+            font-weight: bold;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .logout-btn {
+            width: 100%;
+            padding: 12px;
+            background: rgba(255, 107, 107, 0.1);
+            color: var(--danger-color);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: var(--transition);
+            font-weight: 500;
+        }
+
+        .logout-btn:hover {
+            background: linear-gradient(135deg, var(--danger-color), #ff5252);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+            border-color: var(--danger-color);
+        }
+
+        /* ====== المحتوى الرئيسي ====== */
+        .main-content {
+            padding: 30px;
+            overflow-y: auto;
+            background: var(--primary-color);
+        }
+
+        /* ====== الهيدر ====== */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .header h1 {
+            font-size: 28px;
+            color: var(--accent-color);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: var(--border-radius);
+            border: none;
+            font-family: 'Cairo', sans-serif;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-color), var(--accent-light));
+            color: white;
+            border: 1px solid transparent;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+            border-color: var(--accent-color);
+        }
+
+        /* ====== بطاقات الإحصائيات ====== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: linear-gradient(145deg, var(--card-bg), var(--secondary-color));
+            padding: 25px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            transition: var(--transition);
+            border: 1px solid var(--border-color);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-hover);
+            border-color: var(--accent-color);
+        }
+
+        .stat-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 15px;
+            font-size: 24px;
+            color: white;
+            box-shadow: var(--shadow);
+        }
+
+        .stat-icon.users { background: linear-gradient(135deg, var(--accent-color), var(--accent-light)); }
+        .stat-icon.active { background: linear-gradient(135deg, var(--success-color), #44c554); }
+        .stat-icon.admins { background: linear-gradient(135deg, var(--info-color), #4a9eff); }
+        .stat-icon.blocked { background: linear-gradient(135deg, var(--danger-color), #ff5252); }
+
+        .stat-number {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--text-color);
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: var(--light-text);
+            font-size: 14px;
+        }
+
+        /* ====== عناصر التحكم ====== */
+        .controls {
+            background: linear-gradient(145deg, var(--card-bg), var(--secondary-color));
+            padding: 25px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 30px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: center;
+            border: 1px solid var(--border-color);
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 300px;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 14px 20px 14px 50px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--border-radius);
+            font-size: 16px;
+            font-family: 'Cairo', sans-serif;
+            transition: var(--transition);
+            background: var(--input-bg);
+            color: var(--text-color);
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(156, 125, 84, 0.3);
+        }
+
+        .search-box i {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--light-text);
+        }
+
+        .filter-select {
+            min-width: 180px;
+        }
+
+        .filter-select select {
+            width: 100%;
+            padding: 14px 20px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--border-radius);
+            background: var(--input-bg);
+            font-size: 16px;
+            font-family: 'Cairo', sans-serif;
+            color: var(--text-color);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .filter-select select:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(156, 125, 84, 0.3);
+        }
+
+        /* ====== جدول المستخدمين المحسّن ====== */
+        .users-table-container {
+            background: linear-gradient(145deg, var(--card-bg), var(--secondary-color));
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        .table-header {
+            display: grid;
+            grid-template-columns: 60px 1fr 1.5fr 1fr 1fr 1fr 120px;
+            padding: 20px;
+            background: linear-gradient(135deg, var(--accent-color), var(--accent-dark));
+            color: white;
+            font-weight: 600;
+        }
+
+        .user-row {
+            display: grid;
+            grid-template-columns: 60px 1fr 1.5fr 1fr 1fr 1fr 120px;
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            transition: var(--transition);
+        }
+
+        .user-row:hover {
+            background: rgba(156, 125, 84, 0.1);
+        }
+
+        .user-avatar-small {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-color), var(--accent-light));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .user-info-compact h4 {
+            margin-bottom: 5px;
+            color: var(--text-color);
+        }
+
+        .user-info-compact p {
+            color: var(--light-text);
+            font-size: 12px;
+        }
+
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+            text-align: center;
+            border: 1px solid;
+        }
+
+        .status-active { 
+            background: rgba(76, 217, 100, 0.1); 
+            color: var(--success-color);
+            border-color: rgba(76, 217, 100, 0.3);
+        }
+        .status-blocked { 
+            background: rgba(255, 107, 107, 0.1); 
+            color: var(--danger-color);
+            border-color: rgba(255, 107, 107, 0.3);
+        }
+        .status-pending { 
+            background: rgba(255, 204, 0, 0.1); 
+            color: var(--warning-color);
+            border-color: rgba(255, 204, 0, 0.3);
+        }
+
+        .role-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+            text-align: center;
+            border: 1px solid;
+        }
+
+        .role-admin { 
+            background: rgba(156, 125, 84, 0.1); 
+            color: var(--accent-color);
+            border-color: rgba(156, 125, 84, 0.3);
+        }
+        .role-user { 
+            background: rgba(160, 160, 160, 0.1); 
+            color: var(--light-text);
+            border-color: rgba(160, 160, 160, 0.3);
+        }
+
+        .password-display {
+            font-family: 'Courier New', monospace;
+            color: var(--light-text);
+            background: var(--input-bg);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            letter-spacing: 1px;
+            border: 1px solid var(--border-color);
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition);
+            border: none;
+            font-size: 14px;
+            box-shadow: var(--shadow);
+        }
+
+        .edit-btn { 
+            background: linear-gradient(135deg, var(--info-color), #4a9eff); 
+            color: white; 
+        }
+        .edit-btn:hover { 
+            background: linear-gradient(135deg, #1a7ee6, var(--info-color)); 
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+        }
+        .delete-btn { 
+            background: linear-gradient(135deg, var(--danger-color), #ff5252); 
+            color: white; 
+        }
+        .delete-btn:hover { 
+            background: linear-gradient(135deg, #ff3333, var(--danger-color)); 
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+        }
+        .block-btn { 
+            background: linear-gradient(135deg, var(--warning-color), #e6a200); 
+            color: white; 
+        }
+        .block-btn:hover { 
+            background: linear-gradient(135deg, #d68910, var(--warning-color)); 
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        /* ====== النوافذ المنبثقة ====== */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .modal {
+            background: linear-gradient(145deg, var(--card-bg), var(--secondary-color));
+            border-radius: var(--border-radius);
+            width: 100%;
+            max-width: 500px;
+            box-shadow: var(--shadow-hover);
+            animation: slideIn 0.3s ease;
+            border: 1px solid var(--border-color);
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .modal-header {
+            padding: 25px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            color: var(--accent-color);
+            font-size: 22px;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            color: var(--light-text);
+            font-size: 24px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .close-modal:hover {
+            color: var(--danger-color);
+        }
+
+        .modal-body {
+            padding: 25px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--accent-color);
+            font-weight: 500;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 14px 20px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--border-radius);
+            font-size: 16px;
+            font-family: 'Cairo', sans-serif;
+            transition: var(--transition);
+            background: var(--input-bg);
+            color: var(--text-color);
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(156, 125, 84, 0.3);
+        }
+
+        .modal-footer {
+            padding: 20px 25px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: 15px;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, var(--light-text), #888888);
+            color: white;
+            border: none;
+        }
+
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #777777, var(--light-text));
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, var(--danger-color), #ff5252);
+            color: white;
+            border: none;
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        /* ====== التنبيهات ====== */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, var(--accent-color), var(--accent-light));
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-hover);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: var(--transition);
+            z-index: 1001;
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast i {
+            font-size: 24px;
+        }
+
+        .toast-success { 
+            background: linear-gradient(135deg, var(--success-color), #44c554); 
+            border-color: rgba(76, 217, 100, 0.3);
+        }
+        .toast-error { 
+            background: linear-gradient(135deg, var(--danger-color), #ff5252); 
+            border-color: rgba(255, 107, 107, 0.3);
+        }
+        .toast-info { 
+            background: linear-gradient(135deg, var(--info-color), #4a9eff); 
+            border-color: rgba(90, 200, 250, 0.3);
+        }
+
+        /* ====== حالة عدم وجود بيانات ====== */
+        .no-data {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--light-text);
+        }
+
+        .no-data i {
+            font-size: 48px;
+            margin-bottom: 20px;
+            color: var(--border-color);
+        }
+
+        /* ====== التجاوب ====== */
+        @media (max-width: 1200px) {
+            .dashboard-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                position: fixed;
+                top: 0;
+                right: -280px;
+                height: 100vh;
+                transition: var(--transition);
+                z-index: 1000;
+            }
+            
+            .sidebar.active {
+                right: 0;
+            }
+            
+            .mobile-menu-toggle {
+                display: block;
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 999;
+                background: linear-gradient(135deg, var(--accent-color), var(--accent-light));
+                padding: 12px;
+                border-radius: var(--border-radius);
+                box-shadow: var(--shadow-hover);
+                color: white;
+                border: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 20px;
+                text-align: center;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+            
+            .search-box {
+                min-width: 100%;
+            }
+            
+            .table-header, .user-row {
+                grid-template-columns: repeat(3, 1fr);
+                font-size: 14px;
+            }
+            
+            .table-header > :nth-child(4),
+            .table-header > :nth-child(5),
+            .table-header > :nth-child(6),
+            .user-row > :nth-child(4),
+            .user-row > :nth-child(5),
+            .user-row > :nth-child(6) {
+                display: none;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .main-content {
+                padding: 20px 15px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .actions {
+                flex-direction: column;
+            }
+            
+            .action-btn {
+                width: 100%;
+            }
+        }
+
+        /* ====== مؤشر التحميل ====== */
+        .loader {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(156, 125, 84, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--accent-color);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ====== تحسينات إضافية للواجهة ====== */
+        .user-row:nth-child(even) {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .user-row:last-child {
+            border-bottom: none;
+        }
+
+        .search-box input::placeholder {
+            color: var(--light-text);
+        }
+
+        .filter-select select option {
+            background: var(--input-bg);
+            color: var(--text-color);
+        }
+
+        .form-control::placeholder {
+            color: var(--light-text);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .stat-card .stat-number {
+            font-size: 28px;
+        }
+
+        .user-row .user-avatar-small {
+            transition: var(--transition);
+        }
+
+        .user-row:hover .user-avatar-small {
+            transform: scale(1.1);
+        }
+
+        .modal .form-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .users-table-container {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .users-table-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .users-table-container::-webkit-scrollbar-track {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        .users-table-container::-webkit-scrollbar-thumb {
+            background: var(--accent-color);
+            border-radius: 4px;
+        }
+
+        .users-table-container::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-light);
+        }
+
+        .password-display {
+            position: relative;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .password-display:hover {
+            background: var(--border-color);
+        }
+
+        .password-display::after {
+            content: 'انقر للنسخ';
+            position: absolute;
+            top: -25px;
+            right: 50%;
+            transform: translateX(50%);
+            background: var(--accent-color);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            opacity: 0;
+            transition: var(--transition);
+            pointer-events: none;
+        }
+
+        .password-display:hover::after {
+            opacity: 1;
+        }
+
+        .status-badge, .role-badge {
+            transition: var(--transition);
+        }
+
+        .status-badge:hover, .role-badge:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        /* ====== تأثيرات إضافية ====== */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .stat-card, .controls, .users-table-container {
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        .stat-card:nth-child(2) { animation-delay: 0.1s; }
+        .stat-card:nth-child(3) { animation-delay: 0.2s; }
+        .stat-card:nth-child(4) { animation-delay: 0.3s; }
+    </style>
+
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- الشريط الجانبي -->
+        <div class="sidebar">
+            <div class="logo-section">
+                <div class="logo">
+                    <i class="fas fa-users-cog"></i>
+                </div>
+                <h1>لوحة التحكم</h1>
+                <p>مكتبة الفجر الرقمية</p>
+            </div>
+            
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active">
+                    <i class="fas fa-users"></i>
+                    <span>المستخدمين</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>الإحصائيات</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-cog"></i>
+                    <span>الإعدادات</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-bell"></i>
+                    <span>الإشعارات</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-shield-alt"></i>
+                    <span>الأمان</span>
+                </a>
+            </nav>
+            
+            <div class="user-section">
+                <div class="user-info">
+                    <div class="user-avatar" id="adminAvatar">م</div>
+                    <div>
+                        <h4 id="adminName">المدير</h4>
+                        <p id="adminEmail">admin@library.com</p>
+                    </div>
+                </div>
+                <button class="logout-btn" id="logoutBtn">
+                    <i class="fas fa-sign-out-alt"></i>
+                    تسجيل الخروج
+                </button>
+            </div>
+        </div>
+        
+        <!-- المحتوى الرئيسي -->
+        <div class="main-content">
+            <!-- الهيدر -->
+            <div class="header">
+                <h1>
+                    <i class="fas fa-users"></i>
+                    إدارة المستخدمين
+                </h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary" id="addUserBtn">
+                        <i class="fas fa-user-plus"></i>
+                        إضافة مستخدم
+                    </button>
+                </div>
+            </div>
+            
+            <!-- إحصائيات -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon users">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="stat-number" id="totalUsers">0</div>
+                    <div class="stat-label">إجمالي المستخدمين</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon active">
+                        <i class="fas fa-user-check"></i>
+                    </div>
+                    <div class="stat-number" id="activeUsers">0</div>
+                    <div class="stat-label">المستخدمين النشطين</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon admins">
+                        <i class="fas fa-user-shield"></i>
+                    </div>
+                    <div class="stat-number" id="adminUsers">0</div>
+                    <div class="stat-label">المشرفين</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon blocked">
+                        <i class="fas fa-user-slash"></i>
+                    </div>
+                    <div class="stat-number" id="blockedUsers">0</div>
+                    <div class="stat-label">المحظورين</div>
+                </div>
+            </div>
+            
+            <!-- أدوات التحكم -->
+            <div class="controls">
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="ابحث عن مستخدم...">
+                    <i class="fas fa-search"></i>
+                </div>
+                
+                <div class="filter-select">
+                    <select id="statusFilter">
+                        <option value="">جميع الحالات</option>
+                        <option value="active">نشط</option>
+                        <option value="blocked">محظور</option>
+                        <option value="pending">معلق</option>
+                    </select>
+                </div>
+                
+                <div class="filter-select">
+                    <select id="roleFilter">
+                        <option value="">جميع الصلاحيات</option>
+                        <option value="admin">مدير</option>
+                        <option value="user">مستخدم</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- جدول المستخدمين -->
+            <div class="users-table-container">
+                <div class="table-header">
+                    <div>#</div>
+                    <div>المستخدم</div>
+                    <div>البريد الإلكتروني</div>
+                    <div>رقم الهاتف</div>
+                    <div>الحالة</div>
+                    <div>الصلاحية</div>
+                    <div>الإجراءات</div>
+                </div>
+                
+                <div id="usersList">
+                    <div class="no-data">
+                        <i class="fas fa-users"></i>
+                        <p>جاري تحميل بيانات المستخدمين...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- نافذة إضافة/تعديل مستخدم -->
+    <div class="modal-overlay" id="userModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalTitle">إضافة مستخدم جديد</h3>
+                <button class="close-modal" id="closeModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="userForm">
+                    <div class="form-group">
+                        <label for="modalUsername">اسم المستخدم</label>
+                        <input type="text" id="modalUsername" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="modalEmail">البريد الإلكتروني</label>
+                        <input type="email" id="modalEmail" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="modalPhone">رقم الهاتف</label>
+                        <input type="tel" id="modalPhone" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="modalPassword">كلمة المرور</label>
+                        <input type="password" id="modalPassword" class="form-control" required>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div class="form-group">
+                            <label for="modalStatus">الحالة</label>
+                            <select id="modalStatus" class="form-control">
+                                <option value="active">نشط</option>
+                                <option value="blocked">محظور</option>
+                                <option value="pending">معلق</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="modalRole">الصلاحية</label>
+                            <select id="modalRole" class="form-control">
+                                <option value="user">مستخدم</option>
+                                <option value="admin">مدير</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <input type="hidden" id="modalUserId">
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelBtn">إلغاء</button>
+                <button class="btn btn-primary" id="saveBtn">حفظ</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- نافذة التأكيد -->
+    <div class="modal-overlay" id="confirmModal">
+        <div class="modal" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3 id="confirmTitle">تأكيد العملية</h3>
+                <button class="close-modal" id="closeConfirmModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="confirmMessage">هل أنت متأكد من رغبتك في حذف هذا المستخدم؟</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelConfirmBtn">إلغاء</button>
+                <button class="btn btn-danger" id="confirmBtn">تأكيد</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- التنبيهات -->
+    <div class="toast" id="toast">
+        <i class="fas fa-check-circle" id="toastIcon"></i>
+        <span id="toastMessage">تمت العملية بنجاح</span>
+    </div>
+
+    <script>
+        // ====== متغيرات عامة ======
+        let currentUser = null;
+        let users = [];
+        let filteredUsers = [];
+        let selectedUserId = null;
+        let currentAction = null;
+
+        // ====== عناصر DOM ======
+        const usersList = document.getElementById('usersList');
+        const searchInput = document.getElementById('searchInput');
+        const statusFilter = document.getElementById('statusFilter');
+        const roleFilter = document.getElementById('roleFilter');
+        const addUserBtn = document.getElementById('addUserBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const userModal = document.getElementById('userModal');
+        const closeModal = document.getElementById('closeModal');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const saveBtn = document.getElementById('saveBtn');
+        const confirmModal = document.getElementById('confirmModal');
+        const closeConfirmModal = document.getElementById('closeConfirmModal');
+        const cancelConfirmBtn = document.getElementById('cancelConfirmBtn');
+        const confirmBtn = document.getElementById('confirmBtn');
+        const toast = document.getElementById('toast');
+
+        // ====== عناصر النموذج ======
+        const modalTitle = document.getElementById('modalTitle');
+        const modalUsername = document.getElementById('modalUsername');
+        const modalEmail = document.getElementById('modalEmail');
+        const modalPhone = document.getElementById('modalPhone');
+        const modalPassword = document.getElementById('modalPassword');
+        const modalStatus = document.getElementById('modalStatus');
+        const modalRole = document.getElementById('modalRole');
+        const modalUserId = document.getElementById('modalUserId');
+
+        // ====== الإحصائيات ======
+        const totalUsers = document.getElementById('totalUsers');
+        const activeUsers = document.getElementById('activeUsers');
+        const adminUsers = document.getElementById('adminUsers');
+        const blockedUsers = document.getElementById('blockedUsers');
+
+        // ====== تهيئة Firebase ======
+        function checkAuth() {
+            window.firebase.onAuthStateChanged(window.firebase.auth, (user) => {
+                if (user) {
+                    currentUser = user;
+                    document.getElementById('adminAvatar').textContent = 
+                        user.displayName ? user.displayName.charAt(0).toUpperCase() : 'م';
+                    document.getElementById('adminName').textContent = user.displayName || 'المدير';
+                    document.getElementById('adminEmail').textContent = user.email;
+                    
+                    loadUsers();
+                } else {
+                    window.location.href = 'login.html';
+                }
+            });
+        }
+
+        // ====== تحميل المستخدمين ======
+        function loadUsers() {
+            const dbRef = window.firebase.ref(window.firebase.database, 'users');
+            
+            window.firebase.onValue(dbRef, (snapshot) => {
+                users = [];
+                if (snapshot.exists()) {
+                    snapshot.forEach((childSnapshot) => {
+                        const user = childSnapshot.val();
+                        user.id = childSnapshot.key;
+                        
+                        if (!user.encryptedPassword) {
+                            user.encryptedPassword = encryptPassword(user.id);
+                        }
+                        
+                        users.push(user);
+                    });
+                }
+                
+                updateStats();
+                filterUsers();
+            }, (error) => {
+                console.error('خطأ في تحميل المستخدمين:', error);
+                showToast('خطأ في تحميل بيانات المستخدمين', 'error');
+            });
+        }
+
+        // ====== تحديث الإحصائيات ======
+        function updateStats() {
+            totalUsers.textContent = users.length;
+            activeUsers.textContent = users.filter(u => u.status === 'active').length;
+            adminUsers.textContent = users.filter(u => u.role === 'admin').length;
+            blockedUsers.textContent = users.filter(u => u.status === 'blocked').length;
+        }
+
+        // ====== تصفية المستخدمين ======
+        function filterUsers() {
+            let filtered = [...users];
+            
+            const searchTerm = searchInput.value.toLowerCase();
+            if (searchTerm) {
+                filtered = filtered.filter(user => 
+                    (user.username && user.username.toLowerCase().includes(searchTerm)) ||
+                    (user.email && user.email.toLowerCase().includes(searchTerm)) ||
+                    (user.phone && user.phone.includes(searchTerm))
+                );
+            }
+            
+            const status = statusFilter.value;
+            if (status) {
+                filtered = filtered.filter(user => user.status === status);
+            }
+            
+            const role = roleFilter.value;
+            if (role) {
+                filtered = filtered.filter(user => user.role === role);
+            }
+            
+            filteredUsers = filtered;
+            renderUsers();
+        }
+
+        // ====== عرض المستخدمين ======
+        function renderUsers() {
+            if (filteredUsers.length === 0) {
+                usersList.innerHTML = `
+                    <div class="no-data">
+                        <i class="fas fa-users-slash"></i>
+                        <p>لا توجد بيانات للمستخدمين</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            usersList.innerHTML = '';
+            
+            filteredUsers.forEach((user, index) => {
+                const userRow = document.createElement('div');
+                userRow.className = 'user-row';
+                
+                const firstLetter = user.username ? user.username.charAt(0).toUpperCase() : '?';
+                
+                userRow.innerHTML = `
+                    <div>${index + 1}</div>
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div class="user-avatar-small">${firstLetter}</div>
+                            <div class="user-info-compact">
+                                <h4>${user.username || 'غير محدد'}</h4>
+                                <p>${formatDate(user.createdAt)}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div>${user.email || 'غير محدد'}</div>
+                    <div>${user.phone || 'غير محدد'}</div>
+                    <div>
+                        <span class="status-badge status-${user.status || 'pending'}">
+                            ${getStatusText(user.status)}
+                        </span>
+                    </div>
+                    <div>
+                        <span class="role-badge role-${user.role || 'user'}">
+                            ${getRoleText(user.role)}
+                        </span>
+                    </div>
+                    <div class="actions">
+                        <button class="action-btn edit-btn" onclick="openEditModal('${user.id}')">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="action-btn delete-btn" onclick="confirmDelete('${user.id}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        <button class="action-btn block-btn" onclick="toggleBlock('${user.id}')">
+                            <i class="fas ${user.status === 'blocked' ? 'fa-unlock' : 'fa-ban'}"></i>
+                        </button>
+                    </div>
+                `;
+                
+                usersList.appendChild(userRow);
+            });
+        }
+
+        // ====== فتح نافذة إضافة مستخدم ======
+        function openAddUserModal() {
+            modalTitle.textContent = 'إضافة مستخدم جديد';
+            modalUsername.value = '';
+            modalEmail.value = '';
+            modalPhone.value = '';
+            modalPassword.value = '';
+            modalStatus.value = 'active';
+            modalRole.value = 'user';
+            modalUserId.value = '';
+            
+            userModal.style.display = 'flex';
+        }
+
+        // ====== فتح نافذة تعديل مستخدم ======
+        function openEditModal(userId) {
+            const user = users.find(u => u.id === userId);
+            if (!user) return;
+            
+            selectedUserId = userId;
+            modalTitle.textContent = 'تعديل بيانات المستخدم';
+            modalUsername.value = user.username || '';
+            modalEmail.value = user.email || '';
+            modalPhone.value = user.phone || '';
+            modalPassword.value = '';
+            modalStatus.value = user.status || 'active';
+            modalRole.value = user.role || 'user';
+            modalUserId.value = user.id;
+            
+            userModal.style.display = 'flex';
+        }
+
+        // ====== حفظ المستخدم ======
+        async function saveUser() {
+            const username = modalUsername.value.trim();
+            const email = modalEmail.value.trim();
+            const phone = modalPhone.value.trim();
+            const password = modalPassword.value;
+            const status = modalStatus.value;
+            const role = modalRole.value;
+            const userId = modalUserId.value;
+            
+            if (!username || !email || !phone) {
+                showToast('الرجاء ملء جميع الحقول المطلوبة', 'error');
+                return;
+            }
+            
+            if (!userId && !password) {
+                showToast('كلمة المرور مطلوبة', 'error');
+                return;
+            }
+            
+            try {
+                saveBtn.innerHTML = '<div class="loader"></div> جاري الحفظ...';
+                saveBtn.disabled = true;
+                
+                const userData = {
+                    username: username,
+                    email: email,
+                    phone: phone,
+                    status: status,
+                    role: role,
+                    updatedAt: new Date().toISOString()
+                };
+                
+                if (password) {
+                    userData.encryptedPassword = encryptPassword(password + userId);
+                }
+                
+                if (userId) {
+                    const dbRef = window.firebase.ref(window.firebase.database, 'users/' + userId);
+                    await window.firebase.update(dbRef, userData);
+                    showToast('تم تحديث المستخدم بنجاح', 'success');
+                } else {
+                    userData.createdAt = new Date().toISOString();
+                    const dbRef = window.firebase.ref(window.firebase.database, 'users');
+                    await window.firebase.push(dbRef, userData);
+                    showToast('تم إضافة المستخدم بنجاح', 'success');
+                }
+                
+                closeUserModal();
+                
+            } catch (error) {
+                console.error('خطأ في حفظ المستخدم:', error);
+                showToast('حدث خطأ أثناء حفظ المستخدم', 'error');
+            } finally {
+                saveBtn.innerHTML = 'حفظ';
+                saveBtn.disabled = false;
+            }
+        }
+
+        // ====== تأكيد الحذف ======
+        function confirmDelete(userId) {
+            const user = users.find(u => u.id === userId);
+            selectedUserId = userId;
+            currentAction = 'delete';
+            
+            confirmTitle.textContent = 'حذف المستخدم';
+            confirmMessage.textContent = `هل أنت متأكد من رغبتك في حذف المستخدم "${user.username || user.email}"؟`;
+            
+            confirmModal.style.display = 'flex';
+        }
+
+        // ====== حذف المستخدم ======
+        async function deleteUser() {
+            try {
+                const dbRef = window.firebase.ref(window.firebase.database, 'users/' + selectedUserId);
+                await window.firebase.remove(dbRef);
+                showToast('تم حذف المستخدم بنجاح', 'success');
+                closeConfirmModal();
+            } catch (error) {
+                console.error('خطأ في حذف المستخدم:', error);
+                showToast('حدث خطأ أثناء حذف المستخدم', 'error');
+            }
+        }
+
+        // ====== حظر/فك حظر ======
+        async function toggleBlock(userId) {
+            const user = users.find(u => u.id === userId);
+            const newStatus = user.status === 'blocked' ? 'active' : 'blocked';
+            
+            try {
+                const dbRef = window.firebase.ref(window.firebase.database, 'users/' + userId);
+                await window.firebase.update(dbRef, {
+                    status: newStatus,
+                    updatedAt: new Date().toISOString()
+                });
+                
+                showToast(newStatus === 'blocked' ? 'تم حظر المستخدم' : 'تم فك الحظر', 'success');
+            } catch (error) {
+                console.error('خطأ في تغيير الحالة:', error);
+                showToast('حدث خطأ أثناء تغيير الحالة', 'error');
+            }
+        }
+
+        // ====== وظائف مساعدة ======
+        function encryptPassword(text) {
+            const hash = btoa(text + Date.now().toString());
+            return '****' + hash.substring(0, 8) + '****';
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return 'غير محدد';
+            return new Date(dateString).toLocaleDateString('ar-SA');
+        }
+
+        function getStatusText(status) {
+            switch (status) {
+                case 'active': return 'نشط';
+                case 'blocked': return 'محظور';
+                case 'pending': return 'معلق';
+                default: return 'غير محدد';
+            }
+        }
+
+        function getRoleText(role) {
+            switch (role) {
+                case 'admin': return 'مدير';
+                case 'user': return 'مستخدم';
+                default: return 'غير محدد';
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const icon = type === 'error' ? 'fa-times-circle' : 
+                         type === 'warning' ? 'fa-exclamation-triangle' : 'fa-check-circle';
+            
+            document.getElementById('toastIcon').className = `fas ${icon}`;
+            document.getElementById('toastMessage').textContent = message;
+            toast.className = `toast toast-${type}`;
+            toast.classList.add('show');
+            
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function closeUserModal() {
+            userModal.style.display = 'none';
+            document.getElementById('userForm').reset();
+        }
+
+        function closeConfirmModal() {
+            confirmModal.style.display = 'none';
+            selectedUserId = null;
+            currentAction = null;
+        }
+
+        // ====== تسجيل الخروج ======
+        async function handleLogout() {
+            try {
+                await window.firebase.signOut(window.firebase.auth);
+                window.location.href = 'login.html';
+            } catch (error) {
+                showToast('خطأ في تسجيل الخروج', 'error');
+            }
+        }
+
+        // ====== إضافة مستمعي الأحداث ======
+        function setupEventListeners() {
+            searchInput.addEventListener('input', filterUsers);
+            statusFilter.addEventListener('change', filterUsers);
+            roleFilter.addEventListener('change', filterUsers);
+            
+            addUserBtn.addEventListener('click', openAddUserModal);
+            logoutBtn.addEventListener('click', handleLogout);
+            
+            closeModal.addEventListener('click', closeUserModal);
+            cancelBtn.addEventListener('click', closeUserModal);
+            saveBtn.addEventListener('click', saveUser);
+            
+            closeConfirmModal.addEventListener('click', closeConfirmModal);
+            cancelConfirmBtn.addEventListener('click', closeConfirmModal);
+            confirmBtn.addEventListener('click', () => {
+                if (currentAction === 'delete') deleteUser();
+            });
+            
+            window.addEventListener('click', (e) => {
+                if (e.target === userModal) closeUserModal();
+                if (e.target === confirmModal) closeConfirmModal();
+            });
+        }
+
+        // ====== تهيئة التطبيق ======
+        function init() {
+            checkAuth();
+            setupEventListeners();
+        }
+
+        // ====== بدء التطبيق ======
+        document.addEventListener('DOMContentLoaded', init);
+        
+        // ====== جعل الدوال متاحة عالمياً ======
+        window.openEditModal = openEditModal;
+        window.confirmDelete = confirmDelete;
+        window.toggleBlock = toggleBlock;
+    </script>
+</body>
+</html>
